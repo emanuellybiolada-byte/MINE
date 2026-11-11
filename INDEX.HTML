@@ -1,1 +1,730 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Mini Minecraft - Construir com N</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{overflow:hidden;background:#7ec8e3;font-family:Arial,sans-serif}
+    canvas{display:block}
+    #ui{position:absolute;top:10px;left:10px;color:#fff;text-shadow:2px 2px 0 #000;pointer-events:none;font-size:13px;line-height:1.4;z-index:10}
+    #crosshair{position:absolute;top:50%;left:50%;width:16px;height:16px;margin:-8px 0 0 -8px;pointer-events:none;z-index:10}
+    #crosshair::before,#crosshair::after{content:'';position:absolute;background:#fff;box-shadow:0 0 0 1px #000}
+    #crosshair::before{width:2px;height:16px;left:7px}
+    #crosshair::after{width:16px;height:2px;top:7px}
+    #hotbar{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);display:flex;gap:3px;background:rgba(0,0,0,.85);padding:5px 7px;border-radius:6px;border:2px solid #555;z-index:10}
+    .slot{width:40px;height:40px;border:3px solid #666;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;border-radius:4px;user-select:none}
+    .slot.selected{border-color:#fff;background:rgba(255,255,255,.3)}
+    #bars{position:absolute;bottom:60px;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:10}
+    #health,#hunger{display:flex;gap:2px}
+    .heart,.food{font-size:16px;text-shadow:1px 1px 0 #000}
+    #timeLabel{position:absolute;top:10px;right:12px;color:#fff;text-shadow:2px 2px 0 #000;font-size:13px;z-index:10}
+    #msg{position:absolute;top:38%;left:50%;transform:translate(-50%,-50%);color:#fff;text-shadow:2px 2px 0 #000;font-size:16px;font-weight:bold;pointer-events:none;z-index:20;opacity:0;transition:opacity .25s}
+    #hint{position:absolute;bottom:105px;left:50%;transform:translateX(-50%);color:#ffe66d;text-shadow:2px 2px 0 #000;font-size:13px;font-weight:bold;pointer-events:none;z-index:10}
 
+    #chestOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;justify-content:center;align-items:center}
+    #chestOverlay.active{display:flex}
+    #chestBox{
+      background:#c6c6c6;border:4px solid #373737;
+      border-top-color:#fff;border-left-color:#fff;
+      border-right-color:#555;border-bottom-color:#555;
+      padding:12px 14px 14px;width:360px;box-shadow:6px 6px 0 rgba(0,0,0,.5);
+    }
+    #chestBox h2,#chestBox .sec-title{
+      font-size:15px;font-weight:bold;color:#3f3f3f;
+      margin:0 0 8px 3px;text-shadow:1px 1px 0 #fff;
+    }
+    #chestBox .sec-title{margin:14px 0 8px 3px}
+    .chest-grid,.inv-grid{
+      display:grid;grid-template-columns:repeat(9,34px);gap:2px;
+      background:#8b8b8b;padding:3px;
+      border:2px solid #373737;
+      border-top-color:#555;border-left-color:#555;
+      border-right-color:#fff;border-bottom-color:#fff;
+      grid-template-rows:repeat(3,34px);
+    }
+    .slot-mc{
+      width:34px;height:34px;background:#8b8b8b;
+      border:2px solid #373737;
+      border-top-color:#555;border-left-color:#555;
+      border-right-color:#fff;border-bottom-color:#fff;
+      display:flex;align-items:center;justify-content:center;
+      font-size:18px;cursor:pointer;position:relative;box-sizing:border-box;
+    }
+    .slot-mc:hover{background:#c8c8c8;outline:1px solid #fff}
+    .slot-mc .count{
+      position:absolute;right:2px;bottom:0;
+      font-size:11px;font-weight:bold;color:#fff;text-shadow:1px 1px 0 #000;
+    }
+    #closeBtn{
+      display:block;margin:14px auto 0;padding:7px 24px;
+      background:#c6c6c6;color:#3f3f3f;font-weight:bold;cursor:pointer;font-size:13px;
+      border:3px solid #373737;
+      border-top-color:#fff;border-left-color:#fff;
+      border-right-color:#555;border-bottom-color:#555;
+    }
+    #closeBtn:hover{background:#e0e0e0}
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <div><b>Clique</b> para jogar</div>
+    <div>WASD = andar | Shift = correr | <b>V = pular</b></div>
+    <div><b>N = construir</b> | Esquerdo = quebrar | Clique = baú/porta</div>
+  </div>
+  <div id="timeLabel">Dia</div>
+  <div id="msg"></div>
+  <div id="hint">📦 Pegue material no baú → selecione → aperte <b>N</b> para colocar</div>
+  <div id="crosshair"></div>
+  <div id="bars"><div id="health"></div><div id="hunger"></div></div>
+  <div id="hotbar">
+    <div class="slot selected" data-type="7">🪵</div>
+    <div class="slot" data-type="6">🟫</div>
+    <div class="slot" data-type="8">⬜</div>
+    <div class="slot" data-type="22">🔦</div>
+    <div class="slot" data-type="10">🚪</div>
+    <div class="slot" data-type="9">🪟</div>
+    <div class="slot" data-type="30">🛏️</div>
+    <div class="slot" data-type="60">⛏️</div>
+    <div class="slot" data-type="1">🟩</div>
+  </div>
+
+  <div id="chestOverlay">
+    <div id="chestBox">
+      <h2>Baú</h2>
+      <div class="chest-grid" id="chestGrid">
+        <div class="slot-mc" data-type="60" data-icon="⛏️" title="Picareta">⛏️</div>
+        <div class="slot-mc"></div>
+        <div class="slot-mc" data-type="31" data-icon="🍎" title="Maçã">🍎</div>
+        <div class="slot-mc"></div>
+        <div class="slot-mc" data-type="61" data-icon="🪓" title="Machado">🪓</div>
+        <div class="slot-mc"></div>
+        <div class="slot-mc" data-type="33" data-icon="🛡️" title="Armadura">🛡️</div>
+        <div class="slot-mc"></div>
+        <div class="slot-mc" data-type="32" data-icon="🧪" title="Poção">🧪</div>
+
+        <div class="slot-mc" data-type="7" data-icon="🪵" title="Tábuas">🪵<span class="count">64</span></div>
+        <div class="slot-mc"></div>
+        <div class="slot-mc" data-type="6" data-icon="🟫" title="Tronco">🟫<span class="count">32</span></div>
+        <div class="slot-mc"></div>
+        <div class="slot-mc" data-type="8" data-icon="⬜" title="Pedra">⬜<span class="count">32</span></div>
+        <div class="slot-mc"></div>
+        <div class="slot-mc" data-type="10" data-icon="🚪" title="Porta">🚪</div>
+        <div class="slot-mc"></div>
+        <div class="slot-mc" data-type="9" data-icon="🪟" title="Vidro">🪟<span class="count">16</span></div>
+
+        <div class="slot-mc" data-type="30" data-icon="🛏️" title="Cama">🛏️</div>
+        <div class="slot-mc"></div>
+        <div class="slot-mc" data-type="22" data-icon="🔦" title="Tocha">🔦<span class="count">16</span></div>
+        <div class="slot-mc"></div>
+        <div class="slot-mc" data-type="31" data-icon="🍞" title="Pão">🍞<span class="count">8</span></div>
+        <div class="slot-mc"></div>
+        <div class="slot-mc" data-type="11" data-icon="🧱" title="Tijolo">🧱<span class="count">16</span></div>
+        <div class="slot-mc"></div>
+        <div class="slot-mc"></div>
+      </div>
+      <div class="sec-title">Inventário</div>
+      <div class="inv-grid">
+        <div class="slot-mc"></div><div class="slot-mc"></div><div class="slot-mc"></div>
+        <div class="slot-mc"></div><div class="slot-mc"></div><div class="slot-mc"></div>
+        <div class="slot-mc"></div><div class="slot-mc"></div><div class="slot-mc"></div>
+        <div class="slot-mc"></div><div class="slot-mc"></div><div class="slot-mc"></div>
+        <div class="slot-mc"></div><div class="slot-mc"></div><div class="slot-mc"></div>
+        <div class="slot-mc"></div><div class="slot-mc"></div><div class="slot-mc"></div>
+        <div class="slot-mc"></div><div class="slot-mc"></div><div class="slot-mc"></div>
+        <div class="slot-mc"></div><div class="slot-mc"></div><div class="slot-mc"></div>
+        <div class="slot-mc"></div><div class="slot-mc"></div><div class="slot-mc"></div>
+      </div>
+      <button id="closeBtn">Fechar</button>
+    </div>
+  </div>
+
+  <script type="importmap">
+  {"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+
+    const SIZE = 80;
+    const BASE = 6;
+    const BUILDABLE = [1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 20, 22, 30];
+
+    const C = {
+      1:{top:0x5B9C3A,side:0x8B6914},2:{all:0x8B6914},3:{all:0x7A7A7A},
+      5:{all:0x3A8B2F},6:{side:0x5C3A1E,top:0x9A7A4A},
+      7:{all:0xC9A05A},8:{all:0x8B8B8B},
+      9:{all:0x9ED4EC},10:{all:0x4A2A12},11:{all:0x8B4513},
+      20:{all:0xC48A3A},22:{all:0xF4D03F},
+      30:{all:0xB03A2E},60:{all:0x95A5A6},61:{all:0xA0522D}
+    };
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x87CEEB);
+    scene.fog = new THREE.Fog(0x87CEEB, 32, 88);
+
+    const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 120);
+    const renderer = new THREE.WebGLRenderer({antialias:true, powerPreference:'high-performance'});
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+    document.body.appendChild(renderer.domElement);
+
+    const ambient = new THREE.AmbientLight(0xfff5e6, 0.55);
+    scene.add(ambient);
+    const sun = new THREE.DirectionalLight(0xfff0d0, 1.1);
+    sun.position.set(45, 70, 35);
+    scene.add(sun);
+    const fill = new THREE.DirectionalLight(0xa0c4ff, 0.25);
+    fill.position.set(-30, 20, -20);
+    scene.add(fill);
+
+    for (let i = 0; i < 10; i++) {
+      const c = new THREE.Mesh(
+        new THREE.BoxGeometry(5+Math.random()*6, 1.2, 3+Math.random()*3),
+        new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0.9})
+      );
+      c.position.set(Math.random()*SIZE, 26+Math.random()*5, Math.random()*SIZE);
+      scene.add(c);
+    }
+
+    const world = {}, meshes = {}, matCache = {};
+    const boxGeo = new THREE.BoxGeometry(1,1,1);
+    const doorList = [];
+
+    function k(x,y,z){ return x+','+y+','+z; }
+
+    function getMat(t) {
+      if (matCache[t]) return matCache[t];
+      const c = C[t] || {all:0xff00ff};
+      let m;
+      if (t === 1) {
+        m = [
+          new THREE.MeshLambertMaterial({color:c.side}), new THREE.MeshLambertMaterial({color:c.side}),
+          new THREE.MeshLambertMaterial({color:c.top}), new THREE.MeshLambertMaterial({color:0x6B4423}),
+          new THREE.MeshLambertMaterial({color:c.side}), new THREE.MeshLambertMaterial({color:c.side})
+        ];
+      } else if (t === 6) {
+        m = [
+          new THREE.MeshLambertMaterial({color:c.side}), new THREE.MeshLambertMaterial({color:c.side}),
+          new THREE.MeshLambertMaterial({color:c.top}), new THREE.MeshLambertMaterial({color:c.top}),
+          new THREE.MeshLambertMaterial({color:c.side}), new THREE.MeshLambertMaterial({color:c.side})
+        ];
+      } else if (t === 9) {
+        m = new THREE.MeshLambertMaterial({color:c.all, transparent:true, opacity:0.4, depthWrite:false});
+      } else if (t === 10) {
+        m = new THREE.MeshLambertMaterial({color:0x4A2A12});
+      } else if (t === 22) {
+        m = new THREE.MeshLambertMaterial({color:0xF4D03F, emissive:0xF4D03F, emissiveIntensity:0.6});
+      } else {
+        m = new THREE.MeshLambertMaterial({color:c.all || 0xffffff});
+      }
+      matCache[t] = m;
+      return m;
+    }
+
+    function setBlock(x,y,z,type) {
+      if (x<0||z<0||x>=SIZE||z>=SIZE||y<0||y>30) return;
+      const key = k(x,y,z);
+      if (type === 0) {
+        delete world[key];
+        if (meshes[key]) { scene.remove(meshes[key]); delete meshes[key]; }
+        return;
+      }
+      world[key] = type;
+      if (meshes[key]) { meshes[key].material = getMat(type); return; }
+      const mesh = new THREE.Mesh(boxGeo, getMat(type));
+      mesh.position.set(x+0.5, y+0.5, z+0.5);
+      scene.add(mesh);
+      meshes[key] = mesh;
+    }
+
+    function getBlock(x,y,z) {
+      return world[k(Math.floor(x), Math.floor(y), Math.floor(z))] || 0;
+    }
+
+    function noise(x,z) {
+      return Math.sin(x*0.1)*2.4 + Math.cos(z*0.09)*2.1 + Math.sin((x+z)*0.07)*1.4;
+    }
+
+    const VX0=28, VX1=55, VZ0=28, VZ1=55;
+
+    for (let x=0;x<SIZE;x++) {
+      for (let z=0;z<SIZE;z++) {
+        let h = Math.max(4, Math.min(10, Math.floor(5.5+noise(x,z))));
+        if (x>=VX0&&x<=VX1&&z>=VZ0&&z<=VZ1) h = BASE;
+        for (let y=0;y<=h;y++) {
+          let t=3;
+          if (y===h) t=1;
+          else if (y>=h-2) t=2;
+          setBlock(x,y,z,t);
+        }
+      }
+    }
+
+    function createChest(x, y, z) {
+      const g = new THREE.Group();
+      const wood = new THREE.MeshLambertMaterial({color:0xC48A3A});
+      const woodDark = new THREE.MeshLambertMaterial({color:0x8B5A2B});
+      const woodDeep = new THREE.MeshLambertMaterial({color:0x3D2314});
+      const metal = new THREE.MeshLambertMaterial({color:0xD0D0D0});
+      const metalDark = new THREE.MeshLambertMaterial({color:0x888888});
+      const body = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.62, 0.92), wood);
+      body.position.y = -0.08; g.add(body);
+      const lid = new THREE.Mesh(new THREE.BoxGeometry(0.94, 0.26, 0.94), woodDark);
+      lid.position.y = 0.36; g.add(lid);
+      const band = new THREE.Mesh(new THREE.BoxGeometry(0.96, 0.07, 0.96), woodDeep);
+      band.position.y = 0.12; g.add(band);
+      const edgeT = new THREE.Mesh(new THREE.BoxGeometry(0.96, 0.04, 0.96), woodDeep);
+      edgeT.position.y = 0.48; g.add(edgeT);
+      const latch = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.32, 0.07), metal);
+      latch.position.set(0, 0.06, -0.48); g.add(latch);
+      const latchBase = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.1, 0.06), metalDark);
+      latchBase.position.set(0, -0.1, -0.49); g.add(latchBase);
+      const ring = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.05), metal);
+      ring.position.set(0, 0.18, -0.5); g.add(ring);
+      g.position.set(x+0.5, y+0.5, z+0.5);
+      scene.add(g);
+      setBlock(x, y, z, 20);
+    }
+
+    function addDoor(x, y0, z) {
+      for (let dz=-3;dz<=1;dz++)
+        for (let dy=0;dy<=2;dy++)
+          setBlock(x, y0+dy, z+dz, 0);
+      for (let dz=-3;dz<=-1;dz++) setBlock(x, BASE, z+dz, 8);
+      setBlock(x, y0, z, 10);
+      setBlock(x, y0+1, z, 10);
+      const knob = new THREE.Mesh(
+        new THREE.BoxGeometry(0.14, 0.14, 0.14),
+        new THREE.MeshLambertMaterial({color:0xE8C84A, emissive:0xE8C84A, emissiveIntensity:0.35})
+      );
+      knob.position.set(x+0.78, y0+1.0, z-0.08);
+      scene.add(knob);
+      setBlock(x-1, y0, z, 6); setBlock(x-1, y0+1, z, 6); setBlock(x-1, y0+2, z, 6);
+      setBlock(x+1, y0, z, 6); setBlock(x+1, y0+1, z, 6); setBlock(x+1, y0+2, z, 6);
+      setBlock(x, y0+2, z, 6);
+      doorList.push({x, y0, z, open:false, knob});
+    }
+
+    function findDoor(x,y,z) {
+      for (const d of doorList)
+        if (d.x===x && d.z===z && (y===d.y0||y===d.y0+1)) return d;
+      return null;
+    }
+
+    function toggleDoor(d) {
+      d.open = !d.open;
+      if (d.open) {
+        setBlock(d.x,d.y0,d.z,0); setBlock(d.x,d.y0+1,d.z,0);
+        if (d.knob) d.knob.visible = false;
+        msg('🚪 Porta aberta');
+      } else {
+        setBlock(d.x,d.y0,d.z,10); setBlock(d.x,d.y0+1,d.z,10);
+        if (d.knob) d.knob.visible = true;
+        msg('🚪 Porta fechada');
+      }
+    }
+
+    function buildHouse(ox, oz, w, d, style) {
+      const wall = style===1 ? 8 : 7;
+      const roof = style===1 ? 6 : 11;
+      const hWall = 4;
+      const doorX = ox + Math.floor(w/2);
+
+      for (let x=ox-1; x<ox+w+1; x++) {
+        for (let z=oz; z<oz+d+1; z++) {
+          setBlock(x, BASE-1, z, 8);
+          if (!(z===oz && x===doorX)) setBlock(x, BASE, z, 8);
+        }
+      }
+      for (let x=ox; x<ox+w; x++) {
+        for (let z=oz; z<oz+d; z++) {
+          for (let y=BASE+1; y<=BASE+14; y++) setBlock(x,y,z,0);
+          setBlock(x, BASE, z, 7);
+        }
+      }
+      for (let x=ox; x<ox+w; x++) {
+        for (let z=oz; z<oz+d; z++) {
+          const edgeX = (x===ox||x===ox+w-1);
+          const edgeZ = (z===oz||z===oz+d-1);
+          if (!edgeX && !edgeZ) continue;
+          for (let y=BASE+1; y<=BASE+hWall; y++) {
+            if (z===oz && x===doorX && y<=BASE+2) continue;
+            const isWin = (y===BASE+2 || y===BASE+3) && (
+              (z===oz && (x===ox+1||x===ox+w-2) && x!==doorX) ||
+              (z===oz+d-1 && (x===ox+1||x===ox+Math.floor(w/2)||x===ox+w-2)) ||
+              (x===ox && (z===oz+1||z===oz+d-2)) ||
+              (x===ox+w-1 && (z===oz+1||z===oz+d-2))
+            );
+            if (isWin) { setBlock(x,y,z,9); continue; }
+            setBlock(x, y, z, (edgeX&&edgeZ) ? 6 : wall);
+          }
+        }
+      }
+      for (let x=ox; x<ox+w; x++) {
+        setBlock(x, BASE+hWall, oz, 6);
+        setBlock(x, BASE+hWall, oz+d-1, 6);
+      }
+      for (let z=oz; z<oz+d; z++) {
+        setBlock(ox, BASE+hWall, z, 6);
+        setBlock(ox+w-1, BASE+hWall, z, 6);
+      }
+      const roofH = Math.ceil((w+2)/2);
+      for (let layer=0; layer<=roofH; layer++) {
+        for (let x=ox-1+layer; x<ox+w+1-layer; x++)
+          for (let z=oz-1; z<=oz+d; z++)
+            setBlock(x, BASE+hWall+1+layer, z, roof);
+        if (layer < roofH) {
+          for (let x=ox+layer; x<ox+w-layer; x++) {
+            setBlock(x, BASE+hWall+1+layer, oz, wall);
+            setBlock(x, BASE+hWall+1+layer, oz+d-1, wall);
+          }
+        }
+      }
+      const cx = ox+w-2, cz = oz+d-2;
+      for (let y=BASE+hWall+1; y<=BASE+hWall+roofH+3; y++) setBlock(cx,y,cz,8);
+      setBlock(cx, BASE+hWall+roofH+4, cz, 3);
+
+      addDoor(doorX, BASE+1, oz);
+      setBlock(ox+Math.floor(w/2), BASE+3, oz+Math.floor(d/2), 22);
+      createChest(ox+1, BASE+1, oz+d-2);
+      setBlock(ox+w-2, BASE+1, oz+d-2, 30);
+      setBlock(ox+w-2, BASE+1, oz+1, 7);
+      setBlock(ox+w-2, BASE+2, oz+1, 22);
+      setBlock(ox+1, BASE+2, oz+1, 22);
+    }
+
+    buildHouse(32, 34, 7, 6, 0);
+    buildHouse(43, 34, 7, 6, 1);
+    buildHouse(54, 34, 6, 5, 0);
+    buildHouse(32, 45, 6, 6, 2);
+    buildHouse(42, 47, 6, 5, 1);
+    buildHouse(52, 45, 7, 6, 0);
+
+    function road(x1,z1,x2,z2) {
+      const steps=Math.max(Math.abs(x2-x1),Math.abs(z2-z1),1);
+      for (let i=0;i<=steps;i++) {
+        const x=Math.round(x1+(x2-x1)*i/steps);
+        const z=Math.round(z1+(z2-z1)*i/steps);
+        setBlock(x,BASE,z,8); setBlock(x+1,BASE,z,8);
+      }
+    }
+    road(34,37,54,37); road(34,38,34,48); road(45,38,45,48); road(55,38,55,48); road(34,48,55,48);
+
+    function tree(tx,tz) {
+      if (tx>=VX0-1&&tx<=VX1+1&&tz>=VZ0-1&&tz<=VZ1+1) return;
+      let by=5;
+      for (let y=14;y>=0;y--) if(getBlock(tx,y,tz)===1){by=y+1;break}
+      for (let i=0;i<5;i++) setBlock(tx,by+i,tz,6);
+      const top=by+5;
+      for (let dx=-2;dx<=2;dx++) for (let dz=-2;dz<=2;dz++) {
+        if (Math.abs(dx)+Math.abs(dz)>3) continue;
+        for (let dy=0;dy<=2;dy++) {
+          if (dx===0&&dz===0&&dy<2) continue;
+          setBlock(tx+dx, top+dy-2, tz+dz, 5);
+        }
+      }
+    }
+    for (let i=0;i<28;i++) tree(4+Math.floor(Math.random()*(SIZE-8)),4+Math.floor(Math.random()*(SIZE-8)));
+
+    const zombies=[];
+    function makeZombie(x,z) {
+      let gyy=7;
+      for (let y=14;y>=0;y--) if(getBlock(x,y,z)){gyy=y+1;break}
+      const g=new THREE.Group();
+      const body=new THREE.Mesh(new THREE.BoxGeometry(0.42,0.58,0.26), new THREE.MeshLambertMaterial({color:0x3D8B37}));
+      body.position.y=0.72; g.add(body);
+      const head=new THREE.Mesh(new THREE.BoxGeometry(0.36,0.36,0.36), new THREE.MeshLambertMaterial({color:0x5D9C3D}));
+      head.position.y=1.22; g.add(head);
+      const eyeM=new THREE.MeshLambertMaterial({color:0xFF2222});
+      const e1=new THREE.Mesh(new THREE.BoxGeometry(0.07,0.07,0.04),eyeM); e1.position.set(-0.1,1.26,0.18); g.add(e1);
+      const e2=new THREE.Mesh(new THREE.BoxGeometry(0.07,0.07,0.04),eyeM); e2.position.set(0.1,1.26,0.18); g.add(e2);
+      g.position.set(x+0.5,gyy,z+0.5);
+      scene.add(g);
+      zombies.push({g,dir:Math.random()*6.28,spd:0.026,t:0,cd:0});
+    }
+
+    const player={
+      pos:new THREE.Vector3(38,9,31), vel:new THREE.Vector3(0,0,0),
+      onGround:true, h:1.55, w:0.2, speed:0.13, run:0.2, jump:0.28, grav:0.02,
+      hp:20, hunger:20, armor:0
+    };
+
+    let jumpLocked=false, selected=7, chestOpen=false, dayTime=0.22;
+    let breakProg=0, lastBreak=null, mining=false, isNight=false, zSpawned=false;
+
+    function solid(x,y,z){ const t=getBlock(x,y,z); return t!==0&&t!==9; }
+    function hasGroundUnder(px,py,pz){
+      const feet=py-0.05;
+      const x0=Math.floor(px-player.w),x1=Math.floor(px+player.w);
+      const z0=Math.floor(pz-player.w),z1=Math.floor(pz+player.w);
+      const y=Math.floor(feet);
+      for(let x=x0;x<=x1;x++) for(let z=z0;z<=z1;z++) if(solid(x,y,z)) return true;
+      return false;
+    }
+    function collideBody(px,py,pz){
+      const x0=Math.floor(px-player.w),x1=Math.floor(px+player.w);
+      const y0=Math.floor(py+0.05),y1=Math.floor(py+player.h-0.1);
+      const z0=Math.floor(pz-player.w),z1=Math.floor(pz+player.w);
+      for(let x=x0;x<=x1;x++) for(let y=y0;y<=y1;y++) for(let z=z0;z<=z1;z++)
+        if(solid(x,y,z)) return true;
+      return false;
+    }
+
+    function spawn(){ player.pos.set(38.5,8,31.5); player.vel.set(0,0,0); player.onGround=true; }
+    spawn();
+    camera.position.copy(player.pos); camera.position.y+=player.h;
+
+    const controls=new PointerLockControls(camera,document.body);
+    document.addEventListener('click',()=>{ if(!chestOpen&&!controls.isLocked) controls.lock(); });
+
+    const keys={};
+    window.addEventListener('keydown',e=>{
+      if(e.code==='Space'){e.preventDefault();return}
+      keys[e.code]=true;
+      if(e.code==='Escape'&&chestOpen) closeChest();
+
+      // ===== TECLA N = CONSTRUIR =====
+      if(e.code==='KeyN' && controls.isLocked && !chestOpen){
+        e.preventDefault();
+        if(!BUILDABLE.includes(selected)){
+          msg('Selecione um material (tábuas, tronco, pedra...)');
+          return;
+        }
+        if(selected===60||selected===61){
+          msg('Ferramenta não constrói — use N com material');
+          return;
+        }
+        const t=target();
+        if(!t){ msg('Mire em um bloco'); return; }
+        const px=Math.floor(player.pos.x), py=Math.floor(player.pos.y), pz=Math.floor(player.pos.z);
+        if(t.px===px&&(t.py===py||t.py===py+1)&&t.pz===pz) return;
+        setBlock(t.px, t.py, t.pz, selected);
+        if(selected===7) msg('🪵 Tábua (N)');
+        else if(selected===6) msg('🟫 Tronco (N)');
+        else if(selected===8) msg('⬜ Pedra (N)');
+        else if(selected===22) msg('🔦 Tocha (N)');
+        else if(selected===30) msg('🛏️ Cama (N)');
+        else if(selected===10) msg('🚪 Porta (N)');
+        else if(selected===9) msg('🪟 Vidro (N)');
+        else if(selected===11) msg('🧱 Tijolo (N)');
+        else msg('Bloco colocado (N)');
+      }
+    });
+    window.addEventListener('keyup',e=>{
+      if(e.code==='Space') return;
+      keys[e.code]=false;
+      if(e.code==='KeyV') jumpLocked=false;
+    });
+
+    function msg(t){
+      const el=document.getElementById('msg');
+      el.textContent=t; el.style.opacity='1';
+      clearTimeout(msg._t); msg._t=setTimeout(()=>el.style.opacity='0',1500);
+    }
+
+    function bars(){
+      const h=document.getElementById('health'); h.innerHTML='';
+      for(let i=0;i<10;i++){const s=document.createElement('span');s.className='heart';s.textContent=i<player.hp/2?'❤️':'🖤';h.appendChild(s)}
+      const f=document.getElementById('hunger'); f.innerHTML='';
+      for(let i=0;i<10;i++){const s=document.createElement('span');s.className='food';s.textContent=i<player.hunger/2?'🍗':'⬛';f.appendChild(s)}
+    }
+    bars();
+
+    document.querySelectorAll('#hotbar .slot').forEach(s=>{
+      s.onclick=()=>{
+        document.querySelectorAll('#hotbar .slot').forEach(x=>x.classList.remove('selected'));
+        s.classList.add('selected'); selected=+s.dataset.type;
+      };
+    });
+    window.addEventListener('keydown',e=>{
+      if(e.code>='Digit1'&&e.code<='Digit9'){
+        const slots=document.querySelectorAll('#hotbar .slot');
+        const i=+e.code.replace('Digit','')-1;
+        if(slots[i]){slots.forEach(x=>x.classList.remove('selected'));slots[i].classList.add('selected');selected=+slots[i].dataset.type}
+      }
+    });
+
+    const overlay=document.getElementById('chestOverlay');
+    function openChest(){ chestOpen=true; overlay.classList.add('active'); if(controls.isLocked) controls.unlock(); }
+    function closeChest(){ chestOpen=false; overlay.classList.remove('active'); }
+    document.getElementById('closeBtn').onclick=closeChest;
+
+    document.querySelectorAll('#chestGrid .slot-mc[data-type]').forEach(slot=>{
+      slot.onclick=()=>{
+        const type=+slot.dataset.type;
+        const icon=slot.dataset.icon;
+        const name=slot.title||'Item';
+        if(type===31){
+          player.hunger=Math.min(20,player.hunger+6);
+          player.hp=Math.min(20,player.hp+2);
+          bars(); msg('🍎 Comeu: '+name);
+        } else if(type===33){
+          player.armor=5; msg('🛡️ Armadura!');
+        } else if(type===32){
+          player.hp=20; bars(); msg('🧪 Poção!');
+        } else {
+          const hs=document.querySelector('#hotbar .slot.selected')||document.querySelector('#hotbar .slot');
+          hs.dataset.type=type; hs.textContent=icon; selected=type;
+          if(BUILDABLE.includes(type)) msg('Pegou '+name+' — aperte N para construir!');
+          else msg('Pegou: '+name);
+        }
+        closeChest();
+      };
+    });
+
+    function target(){
+      const dir=new THREE.Vector3(); camera.getWorldDirection(dir);
+      const o=camera.position.clone();
+      let x=Math.floor(o.x),y=Math.floor(o.y),z=Math.floor(o.z);
+      const sx=dir.x>0?1:-1,sy=dir.y>0?1:-1,sz=dir.z>0?1:-1;
+      const dx=Math.abs(1/(dir.x||1e-8)),dy=Math.abs(1/(dir.y||1e-8)),dz=Math.abs(1/(dir.z||1e-8));
+      let tx=(dir.x>0?(x+1-o.x):(o.x-x))*dx,ty=(dir.y>0?(y+1-o.y):(o.y-y))*dy,tz=(dir.z>0?(z+1-o.z):(o.z-z))*dz;
+      let lx=x,ly=y,lz=z;
+      for(let i=0;i<6;i++){
+        const b=getBlock(x,y,z);
+        if(b!==0) return {x,y,z,px:lx,py:ly,pz:lz,type:b};
+        const dOpen=findDoor(x,y,z);
+        if(dOpen&&dOpen.open) return {x,y,z,px:lx,py:ly,pz:lz,type:0,door:dOpen};
+        lx=x;ly=y;lz=z;
+        if(tx<ty){if(tx<tz){x+=sx;tx+=dx}else{z+=sz;tz+=dz}}
+        else{if(ty<tz){y+=sy;ty+=dy}else{z+=sz;tz+=dz}}
+      }
+      return null;
+    }
+
+    document.addEventListener('mousedown',e=>{
+      if(chestOpen||!controls.isLocked) return;
+      const t=target();
+
+      // Porta
+      if(t&&(e.button===0||e.button===2)){
+        let d=null;
+        if(t.type===10) d=findDoor(t.x,t.y,t.z);
+        else if(t.door) d=t.door;
+        if(d){toggleDoor(d);mining=false;breakProg=0;lastBreak=null;e.preventDefault();return}
+      }
+
+      // Baú
+      if(t&&t.type===20&&(e.button===0||e.button===2)){
+        openChest(); mining=false; e.preventDefault(); return;
+      }
+
+      // Esquerdo = quebrar
+      if(e.button===0) mining=true;
+
+      // Direito = NÃO constrói (só consumíveis)
+      if(e.button===2){
+        if(selected===31){
+          player.hunger=Math.min(20,player.hunger+6);
+          player.hp=Math.min(20,player.hp+2);
+          bars(); msg('🍎 Comeu'); return;
+        }
+        if(selected===32){ player.hp=20; bars(); msg('🧪 Poção'); return; }
+        if(selected===33){ player.armor=5; msg('🛡️ Armadura'); return; }
+        // sem setBlock — construção só com N
+      }
+    });
+    document.addEventListener('mouseup',e=>{if(e.button===0){mining=false;breakProg=0;lastBreak=null}});
+    document.addEventListener('contextmenu',e=>e.preventDefault());
+
+    function updateDay(){
+      dayTime=(dayTime+0.00009)%1;
+      const t=dayTime;
+      let sky,light;
+      if(t<0.25){sky=new THREE.Color().setHSL(0.55,0.5,0.58+t*1.1);light=0.55+t*1.5}
+      else if(t<0.5){const f=(t-0.25)/0.25;sky=new THREE.Color().setHSL(0.58,0.48,0.85-f*0.7);light=0.95-f*0.7}
+      else if(t<0.78){sky=new THREE.Color().setHSL(0.66,0.35,0.08);light=0.14}
+      else{const f=(t-0.78)/0.22;sky=new THREE.Color().setHSL(0.55,0.48,0.08+f*0.5);light=0.14+f*0.5}
+      scene.background=sky; scene.fog.color.copy(sky);
+      ambient.intensity=light*0.55; sun.intensity=light*1.05;
+      const was=isNight; isNight=(t>=0.5&&t<0.78);
+      document.getElementById('timeLabel').textContent=t<0.2?'Manhã':t<0.45?'Dia':t<0.55?'Entardecer':t<0.78?'Noite 🧟':'Madrugada';
+      if(isNight&&!zSpawned){zSpawned=true;msg('Noite!');for(let i=0;i<5;i++)makeZombie(30+Math.floor(Math.random()*25),30+Math.floor(Math.random()*25))}
+      if(!isNight&&was){zSpawned=false;zombies.forEach(z=>scene.remove(z.g));zombies.length=0;msg('Dia!')}
+    }
+
+    let frame=0;
+    function update(){
+      if(!controls.isLocked||chestOpen) return;
+      frame++;
+      const front=new THREE.Vector3(); camera.getWorldDirection(front); front.y=0; front.normalize();
+      const right=new THREE.Vector3().crossVectors(front,new THREE.Vector3(0,1,0)).normalize();
+      const run=keys['ShiftLeft']||keys['ShiftRight'];
+      const spd=run?player.run:player.speed;
+      let mx=0,mz=0;
+      if(keys['KeyW']){mx+=front.x;mz+=front.z}
+      if(keys['KeyS']){mx-=front.x;mz-=front.z}
+      if(keys['KeyA']){mx-=right.x;mz-=right.z}
+      if(keys['KeyD']){mx+=right.x;mz+=right.z}
+      const len=Math.hypot(mx,mz);
+      if(len>0.001){mx=(mx/len)*spd;mz=(mz/len)*spd}
+      player.vel.x=mx; player.vel.z=mz;
+
+      if(keys['KeyV']&&player.onGround&&!jumpLocked){player.vel.y=player.jump;player.onGround=false;jumpLocked=true}
+
+      let nx=player.pos.x+player.vel.x;
+      if(!collideBody(nx,player.pos.y,player.pos.z)) player.pos.x=nx;
+      let nz=player.pos.z+player.vel.z;
+      if(!collideBody(player.pos.x,player.pos.y,nz)) player.pos.z=nz;
+
+      if(player.onGround){
+        player.vel.y=0;
+        if(!hasGroundUnder(player.pos.x,player.pos.y,player.pos.z)) player.onGround=false;
+      } else {
+        player.vel.y-=player.grav;
+        if(player.vel.y<-0.5) player.vel.y=-0.5;
+        const ny=player.pos.y+player.vel.y;
+        if(player.vel.y<=0&&hasGroundUnder(player.pos.x,ny+0.02,player.pos.z)){
+          player.pos.y=Math.floor(ny-0.05)+1; player.vel.y=0; player.onGround=true;
+        } else if(!collideBody(player.pos.x,ny,player.pos.z)) player.pos.y=ny;
+        else player.vel.y=0;
+      }
+
+      if(mining){
+        const t=target();
+        if(t&&t.type!==10&&t.type!==20&&!t.door){
+          const id=t.x+','+t.y+','+t.z;
+          if(id!==lastBreak){breakProg=0;lastBreak=id}
+          let need=10;
+          if(selected===60&&(t.type===3||t.type===8)) need=4;
+          if(selected===61&&(t.type===6||t.type===5||t.type===7||t.type===11)) need=4;
+          breakProg++;
+          if(breakProg>=need){setBlock(t.x,t.y,t.z,0);breakProg=0;lastBreak=null}
+        }
+      }
+
+      if(player.pos.y<-4){spawn();msg('Voltou')}
+      camera.position.set(player.pos.x,player.pos.y+player.h,player.pos.z);
+
+      if(frame%2===0){
+        updateDay();
+        zombies.forEach(z=>{
+          if(z.cd>0) z.cd--;
+          const dx=player.pos.x-z.g.position.x,dz=player.pos.z-z.g.position.z;
+          const dist=Math.hypot(dx,dz);
+          if(dist<18) z.dir=Math.atan2(dz,dx);
+          else{z.t++;if(z.t>40){z.dir+=(Math.random()-0.5);z.t=0}}
+          const nx=z.g.position.x+Math.cos(z.dir)*z.spd;
+          const nz=z.g.position.z+Math.sin(z.dir)*z.spd;
+          if(nx>2&&nx<SIZE-2&&nz>2&&nz<SIZE-2&&!solid(Math.floor(nx),Math.floor(z.g.position.y),Math.floor(nz))){
+            z.g.position.x=nx;z.g.position.z=nz;
+            for(let y=14;y>=0;y--) if(getBlock(Math.floor(nx),y,Math.floor(nz))){z.g.position.y=y+1;break}
+            z.g.rotation.y=-z.dir+1.57;
+          }
+          if(dist<1.2&&z.cd<=0){
+            z.cd=45;
+            const dmg=Math.max(1,2-Math.floor(player.armor/3));
+            player.hp=Math.max(0,player.hp-dmg); bars();
+            if(player.hp<=0){msg('Morreu!');spawn();player.hp=20;player.hunger=20;player.armor=0;bars()}
+          }
+        });
+      }
+    }
+
+    function animate(){requestAnimationFrame(animate);update();renderer.render(scene,camera)}
+    animate();
+    window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+  </script>
+</body>
+</html>
